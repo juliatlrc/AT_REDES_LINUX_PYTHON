@@ -1,25 +1,29 @@
-from scapy.all import IP, ICMP, send, sniff
+from scapy.all import sniff, IP, TCP, send
+import sys
 
+def processar_pacote(pacote):
+    if IP in pacote and TCP in pacote:
+        print("\n[INFO] Pacote detectado:")
+        print(f"    [ORIGEM] {pacote[IP].src}:{pacote[TCP].sport}")
+        print(f"    [DESTINO] {pacote[IP].dst}:{pacote[TCP].dport}")
 
-def injetar_pacote(destino_ip):
-    pacote = IP(dst=destino_ip) / ICMP()
-    print(f"Injetando pacote ICMP para {destino_ip}")
-    send(pacote)
+        pacote_modificado = pacote.copy()
+        pacote_modificado[IP].src = "192.168.100.50"
+        pacote_modificado[IP].dst = "192.168.100.1"
+        pacote_modificado[TCP].dport = 8080
 
+        del pacote_modificado[IP].chksum
+        del pacote_modificado[TCP].chksum
 
-def capturar_resposta(interface):
-    print(f"Capturando pacotes na interface {interface}...")
-
-    def processar_pacote(packet):
-        if packet.haslayer(ICMP):
-            print(f"Pacote ICMP capturado: {packet.summary()}")
-
-    sniff(iface=interface, prn=processar_pacote, store=0)
-
+        print("[ALERTA] Enviando pacote modificado...")
+        send(pacote_modificado, verbose=0)
+        print("[SUCESSO] Pacote enviado com sucesso.")
 
 if __name__ == "__main__":
-    destino_ip = input("Digite o IP de destino para injeção (ex: 192.168.1.1): ")
-    injetar_pacote(destino_ip)
+    if len(sys.argv) < 2:
+        print("Erro: informe a interface de rede como argumento (exemplo: sudo python scapy_ex8.py eth0)")
+        sys.exit(1)
 
-    interface = input("Digite a interface de rede para captura (ex: eth0): ")
-    capturar_resposta(interface)
+    interface = sys.argv[1]
+    print(f"[AVISO] Iniciando captura de pacotes na interface {interface}...")
+    sniff(iface=interface, prn=processar_pacote, count=15)
